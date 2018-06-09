@@ -1,0 +1,7 @@
+[package]
+name = "sheller"
+version = "0.1.0"
+authors = ["Sayantan Khan <bolt.khan@gmail.com>"]
+
+[dependencies]
+nix = "*"
