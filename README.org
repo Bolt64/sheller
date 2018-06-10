@@ -1,0 +1,14 @@
+* Sheller
+An shell for Unix, written in Rust.
+
+* Components built
+1. [X] Rudimentary lexer for the input
+2. [ ] Parser for the input
+3. [ ] Thing that executes the parsed input
+
+# * Stuff to look into   
+
+* Wish list
+1. [ ] A more sophisticated lexer and parser.
+2. [ ] Capability to define built in functions, and become Turing
+   complete.
