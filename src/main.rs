@@ -1,11 +1,11 @@
 extern crate nix;
 extern crate sheller;
 
-use nix::sys::wait::*;
-use nix::unistd::*;
-use std::ffi::CString;
-use sheller::parser::*;
-use sheller::lexer::*;
+// use nix::sys::wait::*;
+// use nix::unistd::*;
+// use std::ffi::CString;
+// use sheller::parser::*;
+// use sheller::lexer::*;
 
 fn main() {
     // match fork().expect("fork failed") {
