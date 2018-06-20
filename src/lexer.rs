@@ -1,3 +1,11 @@
+extern crate nix;
+extern crate void;
+
+use std::ffi::CString;
+use std::iter::FromIterator;
+// use nix::Result;
+use self::void::Void;
+
 #[derive(PartialEq, Debug)]
 enum Token<'a> {
     Progname(&'a str),
@@ -9,7 +17,50 @@ enum Token<'a> {
 #[derive(PartialEq, Debug)]
 enum ParseError<'a> {
     UnbalancedQuote(&'a str),
-    QuoteInAtomicString(&'a str)
+    QuoteInAtomicString(&'a str),
+    TokenOutOfPlace,
+}
+
+#[derive(Debug)]
+struct Command {
+    progname: CString,
+    arguments: Vec<CString>,
+}
+
+impl Command {
+    fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
+        let mut cstrings: Vec<CString> = Vec::new();
+        for (index, token) in tokens.iter().enumerate() {
+            if index == 0 {
+                match token {
+                    Token::Progname(string) =>
+                        cstrings.push(CString::new(*string).expect("Null byte encountered")),
+                    _ =>
+                        return Err(ParseError::TokenOutOfPlace),
+                }
+            } else {
+                match token {
+                    Token::Argument(string) =>
+                        cstrings.push(CString::new(*string).expect("Null byte encountered")),
+                    _ =>
+                        return Err(ParseError::TokenOutOfPlace),
+                }
+            }
+        }
+        let progname = cstrings[0].clone();
+        let arguments = Vec::from_iter(cstrings[1..].iter().cloned());
+        Ok(Command {progname, arguments})
+    }
+
+    // fn execute(&self) -> nix::Result<Void> {
+    // 
+    // }
+}
+
+#[derive(Debug)]
+enum Function {
+    ShellCommand(Command),
+    Quit,
 }
 
 /* This function takes a string slice, and tries to lex it according
@@ -233,7 +284,7 @@ mod tests {
         let expected_result = Ok(Vec::new());
         assert_eq!(tokenize_atomic_string(&string), expected_result);
     }
-  
+
     #[test]
     fn split_by_whitespace_test() {
         let string = "echo";
@@ -331,8 +382,4 @@ mod tests {
         let expected_result = vec![&string[0..0], &string[1..]];
         assert_eq!(exclusive_separate_at_positions(&string, positions), expected_result);
     }
-
-
-
-
 }

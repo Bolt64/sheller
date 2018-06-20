@@ -5,3 +5,4 @@ authors = ["Sayantan Khan <bolt.khan@gmail.com>"]
 
 [dependencies]
 nix = "*"
+void = "*"
