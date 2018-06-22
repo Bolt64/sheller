@@ -19,9 +19,10 @@ enum ParseError<'a> {
     UnbalancedQuote(&'a str),
     QuoteInAtomicString(&'a str),
     TokenOutOfPlace,
+    NullByteError,
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Debug)]
 struct Command {
     progname: CString,
     arguments: Vec<CString>,
@@ -33,15 +34,23 @@ impl Command {
         for (index, token) in tokens.iter().enumerate() {
             if index == 0 {
                 match token {
-                    Token::Progname(string) =>
-                        cstrings.push(CString::new(*string).expect("Null byte encountered")),
+                    Token::Progname(string) => {
+                        match CString::new(*string) {
+                            Ok(cstring) => cstrings.push(cstring),
+                            Err(_) => return Err(ParseError::NullByteError),
+                        }
+                    }
                     _ =>
                         return Err(ParseError::TokenOutOfPlace),
                 }
             } else {
                 match token {
-                    Token::Argument(string) =>
-                        cstrings.push(CString::new(*string).expect("Null byte encountered")),
+                    Token::Argument(string) => {
+                        match CString::new(*string) {
+                            Ok(cstring) => cstrings.push(cstring),
+                            Err(_) => return Err(ParseError::NullByteError),
+                        }
+                    }
                     _ =>
                         return Err(ParseError::TokenOutOfPlace),
                 }
@@ -216,6 +225,41 @@ fn exclusive_separate_at_positions(string: &str, positions: Vec<usize>) -> Vec<&
 mod tests {
     use super::*;
 
+    #[test]
+    fn command_new_test() {
+        let string = "ls";
+        let tokens = tokenize_string(&string).unwrap();
+        let progname = CString::new("ls").unwrap();
+        let arguments: Vec<CString> = Vec::new();
+        let expected_result = Ok(Command{progname, arguments});
+        assert_eq!(Command::new(tokens), expected_result);
+
+        let string = "ls -l";
+        let tokens = tokenize_string(&string).unwrap();
+        let progname = CString::new("ls").unwrap();
+        let arguments = vec![CString::new("-l").unwrap()];
+        let expected_result = Ok(Command{progname, arguments});
+        assert_eq!(Command::new(tokens), expected_result);
+
+        let string = "echo 3 \"more\"";
+        let tokens = tokenize_string(&string).unwrap();
+        let progname = CString::new("echo").unwrap();
+        let arguments = vec![CString::new("3").unwrap(),
+                             CString::new("\"more\"").unwrap()];
+        let expected_result = Ok(Command{progname, arguments});
+        assert_eq!(Command::new(tokens), expected_result);
+
+        let string = "quit";
+        let tokens = tokenize_string(&string).unwrap();
+        let expected_result = Err(ParseError::TokenOutOfPlace);
+        assert_eq!(Command::new(tokens), expected_result);
+
+        let string = "str\0ing";
+        let tokens = tokenize_string(&string).unwrap();
+        let expected_result = Err(ParseError::NullByteError);
+        assert_eq!(Command::new(tokens), expected_result);
+    }
+    
     #[test]
     fn tokenize_string_test() {
         let string = ";";
