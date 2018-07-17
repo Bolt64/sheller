@@ -3,11 +3,11 @@ extern crate void;
 
 use std::ffi::CString;
 use std::iter::FromIterator;
-// use nix::Result;
-use self::void::Void;
+use lexer::void::Void;
+use lexer::nix::unistd::*;
 
 #[derive(PartialEq, Debug)]
-enum Token<'a> {
+pub enum Token<'a> {
     Progname(&'a str),
     Argument(&'a str),
     Separator,
@@ -15,7 +15,7 @@ enum Token<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-enum ParseError<'a> {
+pub enum ParseError<'a> {
     UnbalancedQuote(&'a str),
     QuoteInAtomicString(&'a str),
     TokenOutOfPlace,
@@ -23,47 +23,44 @@ enum ParseError<'a> {
 }
 
 #[derive(PartialEq, Debug)]
-struct Command {
+pub struct Command {
     progname: CString,
     arguments: Vec<CString>,
 }
 
 impl Command {
-    fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
+    pub fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
         let mut cstrings: Vec<CString> = Vec::new();
         for (index, token) in tokens.iter().enumerate() {
             if index == 0 {
                 match token {
-                    Token::Progname(string) => {
-                        match CString::new(*string) {
-                            Ok(cstring) => cstrings.push(cstring),
-                            Err(_) => return Err(ParseError::NullByteError),
-                        }
-                    }
-                    _ =>
-                        return Err(ParseError::TokenOutOfPlace),
+                    Token::Progname(string) => match CString::new(*string) {
+                        Ok(cstring) => cstrings.push(cstring),
+                        Err(_) => return Err(ParseError::NullByteError),
+                    },
+                    _ => return Err(ParseError::TokenOutOfPlace),
                 }
             } else {
                 match token {
-                    Token::Argument(string) => {
-                        match CString::new(*string) {
-                            Ok(cstring) => cstrings.push(cstring),
-                            Err(_) => return Err(ParseError::NullByteError),
-                        }
-                    }
-                    _ =>
-                        return Err(ParseError::TokenOutOfPlace),
+                    Token::Argument(string) => match CString::new(*string) {
+                        Ok(cstring) => cstrings.push(cstring),
+                        Err(_) => return Err(ParseError::NullByteError),
+                    },
+                    _ => return Err(ParseError::TokenOutOfPlace),
                 }
             }
         }
         let progname = cstrings[0].clone();
         let arguments = Vec::from_iter(cstrings[1..].iter().cloned());
-        Ok(Command {progname, arguments})
+        Ok(Command {
+            progname,
+            arguments,
+        })
     }
 
-    // fn execute(&self) -> nix::Result<Void> {
-    // 
-    // }
+    pub fn execute(&self) -> nix::Result<Void> {
+        execvp(&self.progname, &self.arguments)
+    }
 }
 
 #[derive(Debug)]
@@ -77,12 +74,10 @@ to a very basic grammar.
 It first splits up the string into the atomic commands, i.e. the commands
 separated by ';'. It then calls `tokenize_atomic_string on each of the
 atomic strings separately.` */
-fn tokenize_string(string: &str) -> Result<Vec<Token>, ParseError> {
+pub fn tokenize_string(string: &str) -> Result<Vec<Token>, ParseError> {
     let mut tokens: Vec<Token> = Vec::new();
-    let atomic_strings = exclusive_separate_at_positions(
-        string,
-        find_all_separator_positions(string)
-    );
+    let atomic_strings =
+        exclusive_separate_at_positions(string, find_all_separator_positions(string));
     for (index, atomic_string) in atomic_strings.iter().enumerate() {
         if index > 0 {
             tokens.push(Token::Separator);
@@ -102,7 +97,7 @@ fn tokenize_atomic_string(string: &str) -> Result<Vec<Token>, ParseError> {
     match quoted_block_position {
         Some((fb, lb)) => {
             let left_words = split_by_whitespace(&string[..fb])?;
-            let right_words = split_by_whitespace(&string[(lb+1)..])?;
+            let right_words = split_by_whitespace(&string[(lb + 1)..])?;
 
             for (index, word) in left_words.iter().enumerate() {
                 if index == 0 {
@@ -115,13 +110,13 @@ fn tokenize_atomic_string(string: &str) -> Result<Vec<Token>, ParseError> {
                 }
             }
 
-            let quoted_part = Token::Argument(&string[fb..(lb+1)]);
+            let quoted_part = Token::Argument(&string[fb..(lb + 1)]);
             tokens.push(quoted_part);
 
             for word in right_words.iter() {
                 tokens.push(Token::Argument(word));
             }
-        },
+        }
         None => {
             let words = split_by_whitespace(string)?;
             for (index, word) in words.iter().enumerate() {
@@ -151,7 +146,7 @@ fn split_by_whitespace(string: &str) -> Result<Vec<&str>, ParseError> {
                 individual_words.push(string_slice);
             }
             Ok(individual_words)
-        },
+        }
     }
 }
 
@@ -164,12 +159,12 @@ fn find_quoted_block_position(string: &str) -> Result<Option<(usize, usize)>, Pa
         (None, _) => Ok(None),
         (_, None) => Ok(None),
         (Some(fb), Some(lb)) => {
-            if has_balanced_apostrophes(&string[fb..(lb+1)], '\"') {
+            if has_balanced_apostrophes(&string[fb..(lb + 1)], '\"') {
                 Ok(Some((fb, lb)))
             } else {
-                Err(ParseError::UnbalancedQuote(&string[fb..lb+1]))
+                Err(ParseError::UnbalancedQuote(&string[fb..lb + 1]))
             }
-        },
+        }
     }
 }
 
@@ -184,7 +179,7 @@ fn has_balanced_apostrophes(string: &str, apostrophe_char: char) -> bool {
             if fb == lb {
                 false
             } else {
-                has_balanced_apostrophes(&string[(fb+1)..(lb)], apostrophe_char)
+                has_balanced_apostrophes(&string[(fb + 1)..(lb)], apostrophe_char)
             }
         }
     }
@@ -231,22 +226,33 @@ mod tests {
         let tokens = tokenize_string(&string).unwrap();
         let progname = CString::new("ls").unwrap();
         let arguments: Vec<CString> = Vec::new();
-        let expected_result = Ok(Command{progname, arguments});
+        let expected_result = Ok(Command {
+            progname,
+            arguments,
+        });
         assert_eq!(Command::new(tokens), expected_result);
 
         let string = "ls -l";
         let tokens = tokenize_string(&string).unwrap();
         let progname = CString::new("ls").unwrap();
         let arguments = vec![CString::new("-l").unwrap()];
-        let expected_result = Ok(Command{progname, arguments});
+        let expected_result = Ok(Command {
+            progname,
+            arguments,
+        });
         assert_eq!(Command::new(tokens), expected_result);
 
         let string = "echo 3 \"more\"";
         let tokens = tokenize_string(&string).unwrap();
         let progname = CString::new("echo").unwrap();
-        let arguments = vec![CString::new("3").unwrap(),
-                             CString::new("\"more\"").unwrap()];
-        let expected_result = Ok(Command{progname, arguments});
+        let arguments = vec![
+            CString::new("3").unwrap(),
+            CString::new("\"more\"").unwrap(),
+        ];
+        let expected_result = Ok(Command {
+            progname,
+            arguments,
+        });
         assert_eq!(Command::new(tokens), expected_result);
 
         let string = "quit";
@@ -259,7 +265,7 @@ mod tests {
         let expected_result = Err(ParseError::NullByteError);
         assert_eq!(Command::new(tokens), expected_result);
     }
-    
+
     #[test]
     fn tokenize_string_test() {
         let string = ";";
@@ -280,7 +286,7 @@ mod tests {
         assert_eq!(tokenize_string(&string), expected_result);
     }
 
-   #[test]
+    #[test]
     fn tokenize_atomic_string_test() {
         let string = "echo";
         let expected_result = Ok(vec![Token::Progname(&string[..])]);
@@ -298,10 +304,7 @@ mod tests {
         assert_eq!(tokenize_atomic_string(&string), expected_result);
 
         let string = "quit echo";
-        let expected_result = Ok(vec![
-            Token::Quit,
-            Token::Argument(&string[5..]),
-        ]);
+        let expected_result = Ok(vec![Token::Quit, Token::Argument(&string[5..])]);
         assert_eq!(tokenize_atomic_string(&string), expected_result);
 
         let string = "echo \"blah\"";
@@ -414,16 +417,25 @@ mod tests {
         let string = "aaaaa";
         let positions: Vec<usize> = Vec::new();
         let expected_result = vec![&string[..]];
-        assert_eq!(exclusive_separate_at_positions(&string, positions), expected_result);
+        assert_eq!(
+            exclusive_separate_at_positions(&string, positions),
+            expected_result
+        );
 
         let string = "aaasaa";
         let positions: Vec<usize> = vec![3];
         let expected_result = vec![&string[0..3], &string[4..]];
-        assert_eq!(exclusive_separate_at_positions(&string, positions), expected_result);
+        assert_eq!(
+            exclusive_separate_at_positions(&string, positions),
+            expected_result
+        );
 
         let string = "s";
         let positions: Vec<usize> = vec![0];
         let expected_result = vec![&string[0..0], &string[1..]];
-        assert_eq!(exclusive_separate_at_positions(&string, positions), expected_result);
+        assert_eq!(
+            exclusive_separate_at_positions(&string, positions),
+            expected_result
+        );
     }
 }
