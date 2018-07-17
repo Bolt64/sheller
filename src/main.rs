@@ -8,8 +8,9 @@ use std::ffi::CString;
 use sheller::lexer::*;
 
 fn main() {
+    /*
     match fork().expect("fork failed") {
-        ForkResult::Parent{ child } => {
+        ForkResult::Parent { child } => {
             // sleep(5);
             // kill(child, SIGKILL).expect("kill failed");
             match waitpid(child, None) {
@@ -18,19 +19,20 @@ fn main() {
             };
         }
         ForkResult::Child => {
-            match execvp(&CString::new("/usr/sbin/ls").unwrap(), [].as_ref()) {
+            match execvp(
+                &CString::new("ls").unwrap(),
+                [CString::new("ls").unwrap(), CString::new("-l").unwrap()].as_ref(),
+            ) {
                 Ok(_) => (),
-                Err(err) => println!("Error: {:?}", err),
-            };  // until killed
+                Err(err) => println!("Error here: {:?}", err),
+            }; // until killed
         }
     }
-    
+     */
     // println!("Blah");
-    /*
-    let string = "pwd";
+    let string = "echo \'hell is real\'";
     let tokens = tokenize_string(&string).unwrap();
     let command = Command::new(tokens).unwrap();
     println!("{:?}", command);
     command.execute();
-    */
 }

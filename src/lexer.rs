@@ -1,10 +1,10 @@
 extern crate nix;
 extern crate void;
 
+use lexer::nix::unistd::*;
+use lexer::void::Void;
 use std::ffi::CString;
 use std::iter::FromIterator;
-use lexer::void::Void;
-use lexer::nix::unistd::*;
 
 #[derive(PartialEq, Debug)]
 pub enum Token<'a> {
@@ -59,7 +59,10 @@ impl Command {
     }
 
     pub fn execute(&self) -> nix::Result<Void> {
-        execvp(&self.progname, &self.arguments)
+        let mut full_args: Vec<CString> = Vec::new();
+        full_args.push(self.progname.clone());
+        full_args.extend(self.arguments.clone());
+        execvp(&self.progname, &full_args)
     }
 }
 
