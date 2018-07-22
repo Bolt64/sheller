@@ -6,8 +6,8 @@ use lexer::void::Void;
 use std::ffi::CString;
 use std::iter::FromIterator;
 
-#[derive(PartialEq, Debug)]
-pub enum Token<'a> {
+#[derive(PartialEq, Debug, Clone)]
+enum Token<'a> {
     Progname(&'a str),
     Argument(&'a str),
     Separator,
@@ -29,7 +29,7 @@ pub struct Command {
 }
 
 impl Command {
-    pub fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
+    fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
         let mut cstrings: Vec<CString> = Vec::new();
         for (index, token) in tokens.iter().enumerate() {
             if index == 0 {
@@ -66,10 +66,47 @@ impl Command {
     }
 }
 
-#[derive(Debug)]
-enum Function {
+#[derive(PartialEq, Debug)]
+pub enum Function {
     ShellCommand(Command),
     Quit,
+}
+
+pub fn get_function_from_string(string: &str) -> Result<Vec<Function>, ParseError> {
+    let tokens = tokenize_string(string)?;
+    convert_tokens(tokens)
+}
+
+fn convert_tokens(tokens: Vec<Token>) -> Result<Vec<Function>, ParseError> {
+    let mut functions: Vec<Function> = Vec::new();
+    let mut token_buffer: Vec<Token> = Vec::new();
+    let mut has_quit = false;
+    for token in &tokens {
+        match token {
+            Token::Separator => {
+                if !token_buffer.is_empty() {
+                    let current_tokens = token_buffer.clone();
+                    functions.push(Function::ShellCommand(Command::new(current_tokens)?));
+                    token_buffer.clear();
+                }
+            }
+            Token::Quit => {
+                if !token_buffer.is_empty() {
+                    return Err(ParseError::TokenOutOfPlace);
+                } else if !has_quit {
+                    functions.push(Function::Quit);
+                    has_quit = true;
+                }
+            }
+            _ => {
+                token_buffer.push(token.clone());
+            }
+        };
+    }
+    if !token_buffer.is_empty() {
+        functions.push(Function::ShellCommand(Command::new(token_buffer)?));
+    }
+    Ok(functions)
 }
 
 /* This function takes a string slice, and tries to lex it according
@@ -77,7 +114,7 @@ to a very basic grammar.
 It first splits up the string into the atomic commands, i.e. the commands
 separated by ';'. It then calls `tokenize_atomic_string on each of the
 atomic strings separately.` */
-pub fn tokenize_string(string: &str) -> Result<Vec<Token>, ParseError> {
+fn tokenize_string(string: &str) -> Result<Vec<Token>, ParseError> {
     let mut tokens: Vec<Token> = Vec::new();
     let atomic_strings =
         exclusive_separate_at_positions(string, find_all_separator_positions(string));
@@ -116,7 +153,7 @@ fn tokenize_atomic_string(string: &str) -> Result<Vec<Token>, ParseError> {
             let quoted_part = Token::Argument(&string[fb..(lb + 1)]);
             tokens.push(quoted_part);
 
-            for word in right_words.iter() {
+            for word in &right_words {
                 tokens.push(Token::Argument(word));
             }
         }
@@ -211,7 +248,7 @@ fn exclusive_separate_at_positions(string: &str, positions: Vec<usize>) -> Vec<&
     let mut current_start: usize = 0;
     let mut separated_slices: Vec<&str> = Vec::new();
 
-    for position in positions.iter() {
+    for position in &positions {
         separated_slices.push(&string[current_start..*position]);
         current_start = position + 1;
     }
@@ -223,6 +260,84 @@ fn exclusive_separate_at_positions(string: &str, positions: Vec<usize>) -> Vec<&
 mod tests {
     use super::*;
 
+    #[test]
+    fn get_function_from_string_test() {
+        let string = "ls";
+        let functions = get_function_from_string(&string);
+        let progname = CString::new("ls").unwrap();
+        let arguments: Vec<CString> = Vec::new();
+        let expected_result = Ok(
+            vec![
+                Function::ShellCommand(
+                    Command {
+                        progname,
+                        arguments,
+                    }
+                )
+            ]
+        );
+        assert_eq!(functions, expected_result);
+
+        let string = "ls; quit";
+        let functions = get_function_from_string(&string);
+        let progname = CString::new("ls").unwrap();
+        let arguments: Vec<CString> = Vec::new();
+        let expected_result = Ok(
+            vec![
+                Function::ShellCommand(
+                    Command {
+                        progname,
+                        arguments,
+                    }
+                ),
+                Function::Quit,
+            ]
+        );
+        assert_eq!(functions, expected_result);
+
+        let string = "quit; ls; quit";
+        let functions = get_function_from_string(&string);
+        let progname = CString::new("ls").unwrap();
+        let arguments: Vec<CString> = Vec::new();
+        let expected_result = Ok(
+            vec![
+                Function::Quit,
+                Function::ShellCommand(
+                    Command {
+                        progname,
+                        arguments,
+                    }
+                ),
+            ]
+        );
+        assert_eq!(functions, expected_result);
+        
+        let string = "quit; ls; quit; ls";
+        let functions = get_function_from_string(&string);
+        let progname1 = CString::new("ls").unwrap();
+        let progname2 = CString::new("ls").unwrap();
+        let arguments1: Vec<CString> = Vec::new();
+        let arguments2: Vec<CString> = Vec::new();
+        let expected_result = Ok(
+            vec![
+                Function::Quit,
+                Function::ShellCommand(
+                    Command {
+                        progname: progname1,
+                        arguments: arguments1,
+                    }
+                ),
+                Function::ShellCommand(
+                    Command {
+                        progname: progname2,
+                        arguments: arguments2,
+                    }
+                ),
+            ]
+        );
+        assert_eq!(functions, expected_result);
+    }
+    
     #[test]
     fn command_new_test() {
         let string = "ls";

@@ -1,11 +1,11 @@
-extern crate nix;
+// extern crate nix;
 extern crate sheller;
 
-use nix::sys::wait::*;
-use nix::unistd::*;
-use std::ffi::CString;
-// use sheller::parser::*;
+// use nix::sys::wait::*;
+// use nix::unistd::*;
+// use std::ffi::CString;
 use sheller::lexer::*;
+use sheller::executor::*;
 
 fn main() {
     /*
@@ -30,9 +30,12 @@ fn main() {
     }
      */
     // println!("Blah");
-    let string = "echo \'hell is real\'";
-    let tokens = tokenize_string(&string).unwrap();
-    let command = Command::new(tokens).unwrap();
-    println!("{:?}", command);
-    command.execute();
+    let string = "sleep 30; sleep 60";
+    let functions = get_function_from_string(&string).unwrap();
+    execute_all_functions(functions);
+    // let tokens = tokenize_string(&string).unwrap();
+    // let commands = Command::new(tokens).unwrap();
+    // let commands = convert_tokens(tokens);
+    // println!("{:?}", commands);
+    // command.execute();
 }

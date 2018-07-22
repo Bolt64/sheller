@@ -3,9 +3,11 @@ An shell for Unix, written in Rust.
 
 * Components built
 1. [X] Rudimentary lexer for the input
-2. [ ] Parser for the input
+2. [X] Parser for the input
 3. [ ] Thing that executes the parsed input
 
+* Things to do
+1. [ ] Add proper documentation
 # * Stuff to look into   
 
 * Wish list
