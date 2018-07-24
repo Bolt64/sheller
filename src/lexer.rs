@@ -29,6 +29,7 @@ pub struct Command {
 }
 
 impl Command {
+    // fn new<'a>(tokens: &'a [Token]) -> Result<Command, ParseError<'a>> {
     fn new(tokens: Vec<Token>) -> Result<Command, ParseError> {
         let mut cstrings: Vec<CString> = Vec::new();
         for (index, token) in tokens.iter().enumerate() {

@@ -14,3 +14,4 @@ An shell for Unix, written in Rust.
 1. [ ] A more sophisticated lexer and parser.
 2. [ ] Capability to define built in functions, and become Turing
    complete.
+3. [ ] Tab completion
